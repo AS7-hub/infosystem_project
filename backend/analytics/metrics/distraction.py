@@ -1,23 +1,29 @@
 import pandas as pd
 
 
-def distraction_metrics(df):
+def distraction_metrics(df, session_duration_sec=None):
     """
     Detect and measure distraction periods when gaze goes off-screen.
     
     A distraction is defined as a continuous period where the gaze is off-screen.
     
+    Args:
+        df: DataFrame with gaze data
+        session_duration_sec: Total session duration in seconds (optional, calculated if not provided)
+    
     Returns:
         dict: Distraction metrics including:
             - num_distractions: count of distinct distraction periods
-            - total_distraction_duration_sec: total time spent distracted
-            - avg_distraction_duration_sec: average duration per distraction
+            - total_distraction_duration (sec): total time spent distracted
+            - avg_distraction_duration (sec): average duration per distraction
+            - distraction_ratio: percentage of session time spent distracted
     """
     if df.empty or "on_screen" not in df.columns:
         return {
             "num_distractions": 0,
             "total_distraction_duration (sec)": 0.0,
             "avg_distraction_duration (sec)": 0.0,
+            "distraction_ratio": 0.0,
         }
     
     # Detect transitions: on_screen changing from True to False
@@ -73,13 +79,24 @@ def distraction_metrics(df):
             "num_distractions": 0,
             "total_distraction_duration (sec)": 0.0,
             "avg_distraction_duration (sec)": 0.0,
+            "distraction_ratio": 0.0,
         }
     
     total_duration = sum(distraction_durations)
     avg_duration = total_duration / num_distractions if num_distractions > 0 else 0.0
     
+    # Calculate session duration if not provided
+    if session_duration_sec is None:
+        first_ts = df["timestamp"].min()
+        last_ts = df["timestamp"].max()
+        session_duration_sec = (last_ts - first_ts) / 1000.0
+    
+    # Calculate distraction ratio (percentage of time distracted)
+    distraction_ratio = (total_duration / session_duration_sec) * 100 if session_duration_sec > 0 else 0.0
+    
     return {
         "num_distractions": num_distractions,
         "total_distraction_duration (sec)": round(total_duration, 2),
         "avg_distraction_duration (sec)": round(avg_duration, 2),
+        "distraction_ratio": round(distraction_ratio, 2),
     }
