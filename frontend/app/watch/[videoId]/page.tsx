@@ -134,6 +134,8 @@ export default function WatchPage() {
   // Set up gaze data collection when entering PLAYING state
   useEffect(() => {
     if (state.status === "PLAYING") {
+      webgazer.showPredictionPoints(false)
+
       gazeDataRef.current = []
       console.log("👀 Gaze collection started (PLAYING state)")
       
