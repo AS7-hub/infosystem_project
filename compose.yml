@@ -3,7 +3,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: infosystem-frontend
+    container_name: chiasm-frontend
     environment:
       - NODE_ENV=${APP_ENV:-development}
     ports:
@@ -12,19 +12,19 @@ services:
       - backend
     restart: unless-stopped
     networks:
-      - infosystem-network
+      - chiasm-network
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: infosystem-backend
+    container_name: chiasm-backend
     ports:
       - "5000:5000"
     restart: unless-stopped
     networks:
-      - infosystem-network
+      - chiasm-network
 
 networks:   
-  infosystem-network:
+  chiasm-network:
     driver: bridge
