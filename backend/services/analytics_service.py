@@ -26,14 +26,11 @@ def analyze_gaze_session(
     """
     if not gaze_data:
         raise ValueError("No gaze data provided")
-
-    screen_w = viewport_width if viewport_width is not None else SCREEN_WIDTH
-    screen_h = viewport_height if viewport_height is not None else SCREEN_HEIGHT
-
+    
     try:
         df = preprocess_gaze_data(gaze_data)
         metrics = compute_all_metrics(df)
-        plots = generate_plots(df, screen_w=screen_w, screen_h=screen_h)
+        plots = generate_plots(df, screen_w=viewport_width, screen_h=viewport_height)
         
         # Add distraction timeline plot
         distraction_plot = distraction_timeline(df)
