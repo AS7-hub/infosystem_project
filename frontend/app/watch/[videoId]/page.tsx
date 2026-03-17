@@ -90,7 +90,6 @@ export default function WatchPage() {
   const viewportRef = useRef<{ width: number; height: number } | null>(null)
 
   const slotRef = useRef<HTMLDivElement>(null)
-  const videoContainer = document.getElementById("webgazerVideoContainer")
 
   useEffect(() => {
     const fetchVideo = async () => {
@@ -138,10 +137,15 @@ export default function WatchPage() {
   useEffect(() => {    
     const slot = slotRef.current
     const video = document.getElementById("webgazerVideoFeed")
+    const videoContainer = document.getElementById("webgazerVideoContainer")
 
-    if (videoContainer && video &&  slot && state.status === "IDLE") {
+    if (videoContainer && video && slot && state.status === "IDLE") {
       slot.appendChild(videoContainer)
-      
+
+      const videoElement = video as HTMLVideoElement
+      videoElement.disablePictureInPicture = true
+      videoElement.disableRemotePlayback = true
+
       videoContainer.style.position = "relative" 
       videoContainer.style.top = "auto"
       videoContainer.style.left = "auto"
@@ -230,6 +234,8 @@ export default function WatchPage() {
   }
 
   const enterFullscreenAndStart = async () => {
+    const videoContainer = document.getElementById("webgazerVideoContainer")
+
     if (!containerRef.current) return
     if (process.env.NEXT_PUBLIC_SHOW_PREDICTION_DOT == "true")
       webgazer.showPredictionPoints(true)
@@ -360,9 +366,6 @@ export default function WatchPage() {
             <h2 className="font-semibold text-lg">Calibration accuracy</h2>
             <p className="text-2xl font-bold text-foreground">
               {state.accuracyResult.accuracy_percent.toFixed(1)}%
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Mean error: {state.accuracyResult.mean_error_px.toFixed(1)} px
             </p>
             <div className="flex gap-3 justify-center pt-2">
               <button
