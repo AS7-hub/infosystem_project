@@ -21,7 +21,7 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 DATA_FILE = os.path.join(DATA_DIR, 'videos.json')
 
-# Get screen width and height from frontend ideally
+# Fallback screen width and height if not provided by frontend
 SCREEN_WIDTH = 1920
 SCREEN_HEIGHT = 1080
 

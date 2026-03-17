@@ -73,6 +73,7 @@ export default function WatchPage() {
   const [showReentryDialog, setShowReentryDialog] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const gazeDataRef = useRef<GazePoint[]>([])
+  const viewportRef = useRef<{ width: number; height: number } | null>(null)
 
   const videoContainer = document.getElementById("webgazerVideoContainer")
 
@@ -137,6 +138,10 @@ export default function WatchPage() {
       webgazer.showPredictionPoints(false)
 
       gazeDataRef.current = []
+      viewportRef.current = {
+        width: typeof window !== "undefined" ? window.innerWidth : 0,
+        height: typeof window !== "undefined" ? window.innerHeight : 0,
+      }
       console.log("👀 Gaze collection started (PLAYING state)")
       
       webgazer.setGazeListener((data: any, timestamp: number) => {
@@ -162,12 +167,20 @@ export default function WatchPage() {
     
     if (gazeDataRef.current.length > 0) {
       try {
+        const body: { gaze_data: GazePoint[]; viewport_width?: number; viewport_height?: number } = {
+          gaze_data: gazeDataRef.current,
+        }
+        if (viewportRef.current && viewportRef.current.width > 0 && viewportRef.current.height > 0) {
+          body.viewport_width = viewportRef.current.width
+          body.viewport_height = viewportRef.current.height
+        }
+
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/analyze`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ gaze_data: gazeDataRef.current }),
+          body: JSON.stringify(body),
         })
 
         console.log("Response status:", response.status)
