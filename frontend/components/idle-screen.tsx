@@ -4,7 +4,12 @@ import { Maximize } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
 
-export default function IdleScreen({ onStart }: { onStart: () => void }) {
+type Props = {
+  onStart: () => void
+  slotRef: React.RefObject<HTMLDivElement | null>
+}
+
+export default function IdleScreen({ onStart, slotRef }: Props) {
   const [showOverlay, setShowOverlay] = useState(true)
 
   const onToggleOverlay = () => {
@@ -15,7 +20,7 @@ export default function IdleScreen({ onStart }: { onStart: () => void }) {
   return (
     <div className="flex-1 grid grid-cols-2 h-[calc(100vh-3.6rem)] mx-64">  
       <div className="flex flex-col items-center justify-center gap-22">
-        <div id="video-preview-slot" className="flex items-center justify-center" />
+        <div ref={slotRef} id="video-preview-slot" className="flex items-center justify-center" />
         <Button variant="outline" onClick={onToggleOverlay} className="gap-2 font-semibold cursor-pointer">
           Toggle Face Overlay
         </Button>

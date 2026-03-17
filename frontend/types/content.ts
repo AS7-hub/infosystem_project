@@ -41,3 +41,7 @@ export interface AnalyticsResult {
         distraction_timeline: string
     }
 }
+
+export type CalibrationAccuracyResult = {
+    accuracy_percent: number
+}
