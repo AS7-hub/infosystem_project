@@ -19,12 +19,11 @@ import CalibrationOverlay from "@/components/calibration-overlay"
 import AnalysisDashboard from "@/components/analysis-dashboard"
 
 type WatchState = {
-  status: "LOADING" | "IDLE" | "CALIBRATING" | "POST_CALIBRATION" | "MEASURING_ACCURACY" | "ACCURACY_RESULT" | "PLAYING" | "SUMMARY" | "ERROR"
+  status: "LOADING" | "IDLE" | "CALIBRATING" | "PLAYING" | "SUMMARY" | "ERROR"
   video: Video | null
   error: string | null
   gazeData: GazePoint[] | null
   analysisResult: AnalyticsResult | null
-  accuracyResult: CalibrationAccuracyResult | null
 }
 
 type Action =
@@ -32,10 +31,6 @@ type Action =
   | { type: "LOAD_SUCCESS"; payload: Video }
   | { type: "LOAD_FAIL"; payload: string }
   | { type: "START_CALIBRATION" }
-  | { type: "SHOW_POST_CALIBRATION" }
-  | { type: "START_MEASURING_ACCURACY" }
-  | { type: "SET_ACCURACY_RESULT"; payload: CalibrationAccuracyResult }
-  | { type: "RECALIBRATE" }
   | { type: "START_PLAYING" }
   | { type: "SET_GAZE_DATA"; payload: GazePoint[] }
   | { type: "LOAD_ANALYSIS"; payload: AnalyticsResult }
@@ -51,15 +46,7 @@ function reducer(state: WatchState, action: Action): WatchState {
     case "LOAD_FAIL":
       return { ...state, status: "ERROR", error: action.payload }
     case "START_CALIBRATION":
-      return { ...state, status: "CALIBRATING", error: null, accuracyResult: null }
-    case "SHOW_POST_CALIBRATION":
-      return { ...state, status: "POST_CALIBRATION" }
-    case "START_MEASURING_ACCURACY":
-      return { ...state, status: "MEASURING_ACCURACY" }
-    case "SET_ACCURACY_RESULT":
-      return { ...state, status: "ACCURACY_RESULT", accuracyResult: action.payload }
-    case "RECALIBRATE":
-      return { ...state, status: "CALIBRATING", accuracyResult: null }
+      return { ...state, status: "CALIBRATING", error: null }
     case "START_PLAYING":
       return { ...state, status: "PLAYING" }
     case "SET_GAZE_DATA":
@@ -79,7 +66,6 @@ const initialState: WatchState = {
   error: null,
   gazeData: null,
   analysisResult: null,
-  accuracyResult: null,
 }
 
 export default function WatchPage() {
@@ -91,6 +77,7 @@ export default function WatchPage() {
 
   const gazeDataRef = useRef<GazePoint[]>([])
   const viewportRef = useRef<{ width: number; height: number } | null>(null)
+  const lastGazeSampleTimeRef = useRef<number>(0)
 
   useEffect(() => {
     const fetchVideo = async () => {
@@ -119,13 +106,7 @@ export default function WatchPage() {
   useEffect(() => {
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) {
-        if (
-          state.status === "CALIBRATING" ||
-          state.status === "POST_CALIBRATION" ||
-          state.status === "MEASURING_ACCURACY" ||
-          state.status === "ACCURACY_RESULT" ||
-          state.status === "PLAYING"
-        ) {
+        if (state.status === "CALIBRATING" || state.status === "PLAYING") {
           setShowReentryDialog(true)
         }
       }
@@ -162,25 +143,28 @@ export default function WatchPage() {
   useEffect(() => {
     if (state.status === "PLAYING") {
       webgazer.showPredictionPoints(false)
+      const sampleInterval = process.env.NEXT_PUBLIC_GAZE_SAMPLE_INTERVAL_MS ?
+        parseInt(process.env.NEXT_PUBLIC_GAZE_SAMPLE_INTERVAL_MS) : 100
 
       gazeDataRef.current = []
+      lastGazeSampleTimeRef.current = 0
       viewportRef.current = {
         width: typeof window !== "undefined" ? window.innerWidth : 0,
         height: typeof window !== "undefined" ? window.innerHeight : 0,
       }
 
       webgazer.setGazeListener((data: any, timestamp: number) => {
-        if (data) {
+        if (data && timestamp - lastGazeSampleTimeRef.current >= sampleInterval) {
           gazeDataRef.current.push({
             x: data.x,
             y: data.y,
             timestamp: timestamp,
           })
+          lastGazeSampleTimeRef.current = timestamp
         }
       })
 
       return () => {
-        console.log(`🛑 Gaze collection stopped. Total points collected: ${gazeDataRef.current.length}`)
         webgazer.clearGazeListener()
       }
     }
@@ -313,64 +297,6 @@ export default function WatchPage() {
 
       {state.status === "CALIBRATING" && (
         <CalibrationOverlay onComplete={finishCalibration} onCancel={() => {}}/>
-      )}
-
-      {state.status === "POST_CALIBRATION" && (
-        <div className="fixed inset-0 z-50 bg-background/95 flex flex-col items-center justify-center">
-          <div className="bg-card border shadow-sm p-6 rounded-lg max-w-md text-center space-y-4">
-            <h2 className="font-semibold text-lg">Calibration complete</h2>
-            <p className="text-sm text-muted-foreground">Measure accuracy or proceed to video.</p>
-            <div className="flex gap-3 justify-center pt-2">
-              <button
-                type="button"
-                className="px-4 py-2 rounded-md bg-primary text-primary-foreground font-medium cursor-pointer"
-                onClick={() => dispatch({ type: "START_MEASURING_ACCURACY" })}
-              >
-                Measure accuracy
-              </button>
-              <button
-                type="button"
-                className="px-4 py-2 rounded-md border bg-background font-medium cursor-pointer"
-                onClick={() => dispatch({ type: "START_PLAYING" })}
-              >
-                Proceed to video
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {state.status === "MEASURING_ACCURACY" && (
-        <div className="fixed inset-0 z-50 bg-background/95 flex items-center justify-center">
-          <p className="text-muted-foreground font-medium">Measuring accuracy...</p>
-        </div>
-      )}
-
-      {state.status === "ACCURACY_RESULT" && state.accuracyResult && (
-        <div className="fixed inset-0 z-50 bg-background/95 flex flex-col items-center justify-center">
-          <div className="bg-card border shadow-sm p-6 rounded-lg max-w-md text-center space-y-4">
-            <h2 className="font-semibold text-lg">Calibration accuracy</h2>
-            <p className="text-2xl font-bold text-foreground">
-              {state.accuracyResult.accuracy_percent.toFixed(1)}%
-            </p>
-            <div className="flex gap-3 justify-center pt-2">
-              <button
-                type="button"
-                className="px-4 py-2 rounded-md border bg-background font-medium cursor-pointer"
-                onClick={() => dispatch({ type: "RECALIBRATE" })}
-              >
-                Recalibrate
-              </button>
-              <button
-                type="button"
-                className="px-4 py-2 rounded-md bg-primary text-primary-foreground font-medium cursor-pointer"
-                onClick={() => dispatch({ type: "START_PLAYING" })}
-              >
-                Proceed to video
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {state.status === "PLAYING" && (
