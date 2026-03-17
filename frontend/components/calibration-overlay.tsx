@@ -29,27 +29,28 @@ export default function CalibrationOverlay({ onComplete, onCancel }: Calibration
     }
   }, [clickCounts, onComplete])
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onCancel()
-      }
-    }
+  // // Unused since calibration cancellation is being handled by fullscreen exit
+  // useEffect(() => {
+  //   const handleKeyDown = (e: KeyboardEvent) => {
+  //     if (e.key === "Escape") {
+  //       onCancel()
+  //     }
+  //   }
 
-    const handleFullscreenChange = () => {
-      if (!document.fullscreenElement) {
-        onCancel()
-      }
-    }
+  //   const handleFullscreenChange = () => {
+  //     if (!document.fullscreenElement) {
+  //       onCancel()
+  //     }
+  //   }
 
-    document.addEventListener("keydown", handleKeyDown)
-    document.addEventListener("fullscreenchange", handleFullscreenChange)
+  //   document.addEventListener("keydown", handleKeyDown)
+  //   document.addEventListener("fullscreenchange", handleFullscreenChange)
 
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown)
-      document.removeEventListener("fullscreenchange", handleFullscreenChange)
-    }
-  }, [onCancel])
+  //   return () => {
+  //     document.removeEventListener("keydown", handleKeyDown)
+  //     document.removeEventListener("fullscreenchange", handleFullscreenChange)
+  //   }
+  // }, [onCancel])
 
   const handlePointClick = useCallback((index: number) => {
     setClickCounts((prev) => {

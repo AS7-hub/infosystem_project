@@ -1,15 +1,14 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useRef } from "react"
 import { Video, GazePoint } from "@/types"
 
 interface VideoPlayerProps {
   video: Video | null
-  onVideoEnd?: () => void
-  onGazeDataCollected?: (gazeData: GazePoint[]) => void
+  onVideoEnd: () => void
 }
 
-export default function VideoPlayer({ video, onVideoEnd, onGazeDataCollected }: VideoPlayerProps) {
+export default function VideoPlayer({ video, onVideoEnd }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
 
   if (!video) {

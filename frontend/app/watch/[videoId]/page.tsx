@@ -170,9 +170,8 @@ export default function WatchPage() {
     }
   }, [state.status])
 
-  const transitionToSummary = async () => {
-    console.log("📤 Transitioning to SUMMARY, sending gaze data. Points collected:", gazeDataRef.current.length)
-    
+  // TODO: Add a loading state here while waiting for analysis
+  const transitionToSummary = async () => {    
     if (gazeDataRef.current.length > 0) {
       try {
         const body: { gaze_data: GazePoint[]; viewport_width?: number; viewport_height?: number } = {
@@ -191,31 +190,28 @@ export default function WatchPage() {
           body: JSON.stringify(body),
         })
 
-        console.log("Response status:", response.status)
-
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`)
         }
 
         const data: AnalyticsResult = await response.json()
         dispatch({ type: "LOAD_ANALYSIS", payload: data })
-        console.log("✅ Gaze analysis result:", data)
       } catch (error) {
-        console.error("❌ Error sending gaze data to backend:", error)
+        console.error("Error sending gaze data to backend:", error)
         dispatch({ type: "END_SESSION" })
       }
     } else {
-      console.warn("⚠️ No gaze data collected, transitioning to SUMMARY without analysis")
+      console.warn("No gaze data collected, transitioning to SUMMARY without analysis")
       dispatch({ type: "END_SESSION" })
     }
   }
 
   const handleVideoEnd = async () => {
-    console.log("🎬 Video ended event triggered")
     dispatch({ type: "SET_GAZE_DATA", payload: gazeDataRef.current })
     await transitionToSummary()
   }
 
+  // Quite janky but it works
   const enterFullscreenAndStart = async () => {
     const videoContainer = document.getElementById("webgazerVideoContainer")
 
@@ -239,32 +235,23 @@ export default function WatchPage() {
 
       dispatch({ type: "START_CALIBRATION" })
     } catch (err) {
-      console.warn("Fullscreen denied:", err)
+      console.error("Fullscreen denied:", err)
       webgazer.end()
       dispatch({ type: "SET_ERROR", payload: "Fullscreen is required to proceed. Please allow fullscreen access" })
     }
   }
 
   const finishCalibration = () => {
-    dispatch({ type: "SHOW_POST_CALIBRATION" })
+    dispatch({ type: "START_PLAYING" })
   }
 
   const handleStopSession = async () => {
-    console.log("🛑 Stop session triggered, current status:", state.status)
     setShowReentryDialog(false)
     webgazer.showPredictionPoints(false).end()
     
     if (state.status === "CALIBRATING") {
       dispatch({ type: "SET_ERROR", payload: "Calibration cancelled. Please refresh and try again" })
-    } else if (
-      state.status === "POST_CALIBRATION" ||
-      state.status === "MEASURING_ACCURACY" ||
-      state.status === "ACCURACY_RESULT"
-    ) {
-      dispatch({ type: "SET_ERROR", payload: "Session cancelled. Please refresh and try again" })
     } else if (state.status === "PLAYING") {
-      // User exited fullscreen during playback - send gaze data before transitioning to SUMMARY
-      console.log("User exited during PLAYING state, sending gaze data")
       dispatch({ type: "SET_GAZE_DATA", payload: gazeDataRef.current })
       await transitionToSummary()
     } else {
@@ -332,24 +319,16 @@ export default function WatchPage() {
               <div className="font-extrabold">Fullscreen Paused</div>
             </AlertDialogTitle>
             <AlertDialogDescription className="font-medium">
-                {state.status === "CALIBRATING"
-                  ? "Calibration requires fullscreen. Resume to continue, or stop to cancel."
-                  : state.status === "POST_CALIBRATION" ||
-                    state.status === "MEASURING_ACCURACY" ||
-                    state.status === "ACCURACY_RESULT"
-                    ? "Resume fullscreen to continue, or stop to cancel."
-                    : "Playback requires fullscreen. Resume to watch, or finish the session."}
+                {
+                  state.status === "CALIBRATING"
+                    ? "Calibration requires fullscreen. Resume to continue, or stop to cancel"
+                    : "Playback requires fullscreen. Resume to watch, or finish the session"
+                }
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={handleStopSession} className="cursor-pointer">
-              {state.status === "CALIBRATING"
-                ? "Stop Calibration"
-                : state.status === "POST_CALIBRATION" ||
-                  state.status === "MEASURING_ACCURACY" ||
-                  state.status === "ACCURACY_RESULT"
-                  ? "Stop"
-                  : "Finish Session"}
+              { state.status === "CALIBRATING" ? "Stop Calibration" : "Finish Session" }
             </AlertDialogCancel>
             
             <AlertDialogAction onClick={handleResumeFullscreen} className="cursor-pointer">
