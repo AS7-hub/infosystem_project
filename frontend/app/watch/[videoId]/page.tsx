@@ -85,11 +85,12 @@ const initialState: WatchState = {
 export default function WatchPage() {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [showReentryDialog, setShowReentryDialog] = useState(false)
+
   const containerRef = useRef<HTMLDivElement>(null)
+  const slotRef = useRef<HTMLDivElement>(null)
+
   const gazeDataRef = useRef<GazePoint[]>([])
   const viewportRef = useRef<{ width: number; height: number } | null>(null)
-
-  const slotRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const fetchVideo = async () => {
@@ -134,7 +135,7 @@ export default function WatchPage() {
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange)
   }, [state.status])
 
-  useEffect(() => {    
+  useEffect(() => {
     const slot = slotRef.current
     const video = document.getElementById("webgazerVideoFeed")
     const videoContainer = document.getElementById("webgazerVideoContainer")
@@ -167,8 +168,7 @@ export default function WatchPage() {
         width: typeof window !== "undefined" ? window.innerWidth : 0,
         height: typeof window !== "undefined" ? window.innerHeight : 0,
       }
-      console.log("👀 Gaze collection started (PLAYING state)")
-      
+
       webgazer.setGazeListener((data: any, timestamp: number) => {
         if (data) {
           gazeDataRef.current.push({
@@ -176,7 +176,6 @@ export default function WatchPage() {
             y: data.y,
             timestamp: timestamp,
           })
-          console.log(`📍 Gaze point collected (total: ${gazeDataRef.current.length})`)
         }
       })
 
@@ -302,28 +301,15 @@ export default function WatchPage() {
 
   return (
     <div ref={containerRef} className="bg-background">
-      {state.status === "IDLE" && (
-        <IdleScreen onStart={enterFullscreenAndStart} slotRef={slotRef} />
-      )}
-
       {state.status === "LOADING" &&
         <div className="flex items-center justify-center h-64">
           <div className="text-muted-foreground font-semibold">Loading content...</div>
         </div>
       }
 
-      {state.status === "ERROR" && (
-        <div className="flex flex-col items-center justify-center h-64 space-y-4">
-          <AlertCircle className="w-10 h-10 text-destructive" />
-          <div className="text-lg font-semibold text-foreground">
-            Error
-          </div>
-          <p className=" text-muted-foreground">
-            {state.error || "An unexpected error occurred"}
-          </p>
-        </div>
-      )}
-
+      {state.status === "IDLE" &&
+        <IdleScreen onStart={enterFullscreenAndStart} slotRef={slotRef} />
+      }
 
       {state.status === "CALIBRATING" && (
         <CalibrationOverlay onComplete={finishCalibration} onCancel={() => {}}/>
@@ -396,6 +382,18 @@ export default function WatchPage() {
       {state.status === "SUMMARY" && (
         <AnalysisDashboard result={state.analysisResult} />
       )}
+
+      {state.status === "ERROR" &&
+        <div className="flex flex-col items-center justify-center h-64 space-y-4">
+          <AlertCircle className="w-10 h-10 text-destructive" />
+          <div className="text-lg font-semibold text-foreground">
+            Error
+          </div>
+          <p className=" text-muted-foreground">
+            {state.error || "An unexpected error occurred"}
+          </p>
+        </div>
+      }
 
       {showReentryDialog && (
         <div className="fixed inset-0 z-[999] bg-background/20 backdrop-blur-md transition-all duration-100 animate-in fade-in" />
