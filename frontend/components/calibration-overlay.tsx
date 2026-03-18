@@ -46,8 +46,11 @@ export default function CalibrationOverlay({ onComplete, onCancel }: Calibration
   useEffect(() => {
     if (phase !== "measurement") return
     setMeasureProgress(0)
-    const targetX = typeof window !== "undefined" ? window.innerWidth / 2 : 0
-    const targetY = typeof window !== "undefined" ? window.innerHeight / 2 : 0
+    const el = typeof document !== "undefined" ? document.fullscreenElement : null
+    const w = el ? el.clientWidth : (typeof window !== "undefined" ? window.innerWidth : 0)
+    const h = el ? el.clientHeight : (typeof window !== "undefined" ? window.innerHeight : 0)
+    const targetX = w / 2
+    const targetY = h / 2
     samplesRef.current = []
     lastSampleTsRef.current = 0
     measureStartRef.current = Date.now()
@@ -67,8 +70,9 @@ export default function CalibrationOverlay({ onComplete, onCancel }: Calibration
     const timeout = setTimeout(() => {
       clearInterval(interval)
       webgazer.clearGazeListener()
-      const startTs = measureStartRef.current
-      const used = samplesRef.current.filter((p) => p.timestamp - startTs >= DISCARD_FIRST_MS)
+      const all = samplesRef.current
+      const discardCount = Math.floor(DISCARD_FIRST_MS / SAMPLE_INTERVAL_MS)
+      const used = discardCount > 0 ? all.slice(discardCount) : all
       if (used.length === 0) {
         setPhase("choice")
         return
@@ -76,14 +80,21 @@ export default function CalibrationOverlay({ onComplete, onCancel }: Calibration
       fetch(`${process.env.NEXT_PUBLIC_API_URL}/calibration/accuracy`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gaze_samples: used, target_x: targetX, target_y: targetY }),
+        body: JSON.stringify({
+          gaze_samples: used,
+          target_x: targetX,
+          target_y: targetY,
+          viewport_width: w,
+          viewport_height: h,
+        }),
       })
-        .then((r) => r.json())
+        .then((r) => {
+          if (!r.ok) throw new Error("Accuracy request failed")
+          return r.json()
+        })
         .then((data) => {
           if (data.error) return
-          setAccuracyResult({
-            accuracy_percent: data.accuracy_percent,
-          })
+          setAccuracyResult({ accuracy_percent: data.accuracy_percent })
           setPhase("result")
         })
         .catch(() => setPhase("choice"))
@@ -139,7 +150,6 @@ export default function CalibrationOverlay({ onComplete, onCancel }: Calibration
         <div className="bg-card border shadow-sm p-6 rounded-lg max-w-md text-center space-y-4">
           <h2 className="font-semibold text-lg">Calibration accuracy</h2>
           <p className="text-2xl font-bold text-foreground">{accuracyResult.accuracy_percent.toFixed(1)}%</p>
-          <p className="text-sm text-muted-foreground">Mean error: {accuracyResult.mean_error_px.toFixed(1)} px</p>
           <div className="flex gap-3 justify-center pt-2">
             <button
               type="button"
