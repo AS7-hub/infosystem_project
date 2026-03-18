@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { CheckCircle2, MousePointerClick } from "lucide-react"
+import { CheckCircle2, MousePointerClick, Target } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { CardTitle, CardDescription } from "@/components/ui/card"
@@ -31,7 +31,7 @@ export default function CalibrationOverlay({ onComplete, onCancel }: Calibration
   const [clickCounts, setClickCounts] = useState<number[]>(new Array(9).fill(0))
   const [phase, setPhase] = useState<Phase>("calibration")
   const [accuracyResult, setAccuracyResult] = useState<AccuracyResult | null>(null)
-  const [measureCountdown, setMeasureCountdown] = useState(6)
+  const [measureProgress, setMeasureProgress] = useState(0)
   const samplesRef = useRef<{ x: number; y: number; timestamp: number }[]>([])
   const lastSampleTsRef = useRef<number>(0)
   const measureStartRef = useRef<number>(0)
@@ -45,7 +45,7 @@ export default function CalibrationOverlay({ onComplete, onCancel }: Calibration
 
   useEffect(() => {
     if (phase !== "measurement") return
-    setMeasureCountdown(6)
+    setMeasureProgress(0)
     const targetX = typeof window !== "undefined" ? window.innerWidth / 2 : 0
     const targetY = typeof window !== "undefined" ? window.innerHeight / 2 : 0
     samplesRef.current = []
@@ -53,10 +53,9 @@ export default function CalibrationOverlay({ onComplete, onCancel }: Calibration
     measureStartRef.current = Date.now()
 
     const interval = setInterval(() => {
-      const elapsed = (Date.now() - measureStartRef.current) / 1000
-      const left = Math.max(0, Math.ceil(MEASURE_DURATION_MS / 1000 - elapsed))
-      setMeasureCountdown(left)
-    }, 200)
+      const elapsed = Date.now() - measureStartRef.current
+      setMeasureProgress(Math.min(1, elapsed / MEASURE_DURATION_MS))
+    }, 50)
 
     const listener = (data: { x: number; y: number } | null, timestamp: number) => {
       if (!data || timestamp - lastSampleTsRef.current < SAMPLE_INTERVAL_MS) return
@@ -135,22 +134,6 @@ export default function CalibrationOverlay({ onComplete, onCancel }: Calibration
   const totalRequired = CALIBRATION_POINTS.length * CLICKS_REQUIRED
   const progressPercentage = Math.round((totalClicks / totalRequired) * 100)
 
-
-
-  if (phase === "measurement") {
-    return (
-      <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center">
-        <div className="bg-card border shadow-sm p-6 rounded-lg max-w-md text-center space-y-4">
-          <h2 className="font-semibold text-lg">Measure accuracy</h2>
-          <p className="text-sm text-muted-foreground">
-            Do not move your mouse. Focus on the center of the screen for 5 seconds (first second is discarded).
-          </p>
-          <p className="text-2xl font-bold">{measureCountdown}</p>
-        </div>
-      </div>
-    )
-  }
-
   if (phase === "result" && accuracyResult) {
     return (
       <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center">
@@ -204,7 +187,6 @@ export default function CalibrationOverlay({ onComplete, onCancel }: Calibration
                 Calibration complete
               </CardTitle>
               <CardDescription className="font-medium m-1 text-center">Measure accuracy or proceed to video</CardDescription>
-              <div className="mt-3 h-2 w-full bg-secondary rounded-full overflow-hidden" />
               <div className="flex gap-3 justify-center mt-3">
                 <Button className="mx-2 cursor-pointer" type="button" onClick={() => setPhase("measurement")}>
                   Measure accuracy
@@ -212,6 +194,23 @@ export default function CalibrationOverlay({ onComplete, onCancel }: Calibration
                 <Button className="mx-2 cursor-pointer" type="button" variant="outline" onClick={onComplete}>
                   Proceed to video
                 </Button>
+              </div>
+            </>
+          }
+          {phase === "measurement" &&
+            <>
+              <CardTitle className="text-lg m-1 flex items-center justify-center gap-2">
+                <Target className="w-5 h-5 text-primary font-bold" />
+                Measure accuracy
+              </CardTitle>
+              <CardDescription className="font-medium m-1 text-center">
+                Do not move your mouse. Focus on the dot in the center of the screen.
+              </CardDescription>
+              <div className="mt-3 h-2 w-full bg-secondary rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-75 ease-linear"
+                  style={{ width: `${measureProgress * 100}%` }}
+                />
               </div>
             </>
           }
