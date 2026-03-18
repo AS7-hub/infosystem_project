@@ -20,7 +20,7 @@ const DISCARD_FIRST_MS = 1000
 
 type Phase = "calibration" | "choice" | "measurement" | "result"
 
-type AccuracyResult = { mean_error_px: number; accuracy_percent: number }
+type AccuracyResult = { accuracy_percent: number }
 
 interface CalibrationOverlayProps {
   onComplete: () => void
@@ -82,7 +82,6 @@ export default function CalibrationOverlay({ onComplete, onCancel }: Calibration
         .then((data) => {
           if (data.error) return
           setAccuracyResult({
-            mean_error_px: data.mean_error_px,
             accuracy_percent: data.accuracy_percent,
           })
           setPhase("result")

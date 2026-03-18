@@ -35,13 +35,14 @@ def calibration_accuracy():
         if start_ts is None:
             return jsonify({"error": "Gaze samples must include timestamp"}), 400
 
-        one_second_ms = 1000
-        used = [
-            p
-            for p in gaze_samples
-            if p.get("timestamp") is not None
-            and (p["timestamp"] - start_ts) >= one_second_ms
-        ]
+        # one_second_ms = 1000
+        # used = [
+        #     p
+        #     for p in gaze_samples
+        #     if p.get("timestamp") is not None
+        #     and (p["timestamp"] - start_ts) >= one_second_ms
+        # ]
+        used = gaze_samples
 
         if not used:
             return jsonify({"error": "No gaze samples after discarding first second"}), 400
