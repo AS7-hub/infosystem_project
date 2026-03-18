@@ -217,9 +217,10 @@ export default function CalibrationOverlay({ onComplete, onCancel }: Calibration
         </div>
       </div>
 
-      {CALIBRATION_POINTS.map((point, index) => {
+      {(phase === "measurement" ? [CALIBRATION_POINTS[4]] : CALIBRATION_POINTS).map((point, i) => {
+        const index = phase === "measurement" ? 4 : i
         const clicks = clickCounts[index]
-        const isComplete = clicks >= CLICKS_REQUIRED
+        const isComplete = phase !== "calibration" || clicks >= CLICKS_REQUIRED
 
         let colorClass = "bg-destructive ring-destructive/30"
         if (isComplete) {
@@ -233,7 +234,7 @@ export default function CalibrationOverlay({ onComplete, onCancel }: Calibration
         return (
           <button
             key={index}
-            onClick={() => handlePointClick(index)}
+            onClick={phase === "calibration" ? () => handlePointClick(index) : undefined}
             disabled={isComplete}
             className={cn(
               "absolute w-8 h-8 -ml-4 -mt-4 rounded-full transition-all duration-100 ease-out",
