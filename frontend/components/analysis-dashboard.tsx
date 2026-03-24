@@ -6,9 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 interface AnalysisDashboardProps {
   result: AnalyticsResult | null
+  isLoading?: boolean
 }
 
-export default function AnalysisDashboard({ result }: AnalysisDashboardProps) {
+export default function AnalysisDashboard({ result, isLoading = false }: AnalysisDashboardProps) {
   // Helper function to format metric labels
   const formatLabel = (key: string) => {
     return key
@@ -22,6 +23,15 @@ export default function AnalysisDashboard({ result }: AnalysisDashboardProps) {
         }
         return char.toUpperCase()
       })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <div className="w-10 h-10 rounded-full border-4 border-muted border-t-primary animate-spin" />
+        <div className="text-muted-foreground font-semibold">Analysing session data...</div>
+      </div>
+    )
   }
 
   if (!result || result.status !== "success") {

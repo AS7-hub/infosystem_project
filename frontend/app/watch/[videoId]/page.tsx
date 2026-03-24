@@ -11,7 +11,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog"
-import { useState, useEffect, useRef, useReducer } from "react"
+import { useState, useEffect, useRef, useReducer, useCallback } from "react"
 import { Video, GazePoint, AnalyticsResult, CalibrationAccuracyResult } from "@/types"
 import VideoPlayer from "@/components/video-player"
 import IdleScreen from "@/components/idle-screen"
@@ -71,6 +71,7 @@ const initialState: WatchState = {
 export default function WatchPage() {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [showReentryDialog, setShowReentryDialog] = useState(false)
+  const [isAnalysisLoading, setIsAnalysisLoading] = useState(false)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const slotRef = useRef<HTMLDivElement>(null)
@@ -170,45 +171,47 @@ export default function WatchPage() {
     }
   }, [state.status])
 
-  // TODO: Add a loading state here while waiting for analysis
-  const transitionToSummary = async () => {    
-    if (gazeDataRef.current.length > 0) {
-      try {
-        const body: { gaze_data: GazePoint[]; viewport_width?: number; viewport_height?: number } = {
-          gaze_data: gazeDataRef.current,
-        }
-        if (viewportRef.current && viewportRef.current.width > 0 && viewportRef.current.height > 0) {
-          body.viewport_width = viewportRef.current.width
-          body.viewport_height = viewportRef.current.height
-        }
+  // Immediately navigate to SUMMARY, then fetch analysis in the background
+  const transitionToSummary = useCallback((capturedGazeData: GazePoint[]) => {
+    dispatch({ type: "END_SESSION" })
 
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/analyze`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(body),
-        })
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-
-        const data: AnalyticsResult = await response.json()
-        dispatch({ type: "LOAD_ANALYSIS", payload: data })
-      } catch (error) {
-        console.error("Error sending gaze data to backend:", error)
-        dispatch({ type: "END_SESSION" })
+    if (capturedGazeData.length > 0) {
+      setIsAnalysisLoading(true)
+      const body: { gaze_data: GazePoint[]; viewport_width?: number; viewport_height?: number } = {
+        gaze_data: capturedGazeData,
       }
+      if (viewportRef.current && viewportRef.current.width > 0 && viewportRef.current.height > 0) {
+        body.viewport_width = viewportRef.current.width
+        body.viewport_height = viewportRef.current.height
+      }
+
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+        .then((response) => {
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+          return response.json()
+        })
+        .then((data: AnalyticsResult) => {
+          dispatch({ type: "LOAD_ANALYSIS", payload: data })
+        })
+        .catch((error) => {
+          console.error("Error sending gaze data to backend:", error)
+        })
+        .finally(() => {
+          setIsAnalysisLoading(false)
+        })
     } else {
       console.warn("No gaze data collected, transitioning to SUMMARY without analysis")
-      dispatch({ type: "END_SESSION" })
     }
-  }
+  }, [])
 
-  const handleVideoEnd = async () => {
-    dispatch({ type: "SET_GAZE_DATA", payload: gazeDataRef.current })
-    await transitionToSummary()
+  const handleVideoEnd = () => {
+    const capturedGazeData = gazeDataRef.current
+    dispatch({ type: "SET_GAZE_DATA", payload: capturedGazeData })
+    transitionToSummary(capturedGazeData)
   }
 
   // Quite janky but it works
@@ -245,15 +248,16 @@ export default function WatchPage() {
     dispatch({ type: "START_PLAYING" })
   }
 
-  const handleStopSession = async () => {
+  const handleStopSession = () => {
     setShowReentryDialog(false)
     webgazer.showPredictionPoints(false).end()
     
     if (state.status === "CALIBRATING") {
       dispatch({ type: "SET_ERROR", payload: "Calibration cancelled. Please refresh and try again" })
     } else if (state.status === "PLAYING") {
-      dispatch({ type: "SET_GAZE_DATA", payload: gazeDataRef.current })
-      await transitionToSummary()
+      const capturedGazeData = gazeDataRef.current
+      dispatch({ type: "SET_GAZE_DATA", payload: capturedGazeData })
+      transitionToSummary(capturedGazeData)
     } else {
       dispatch({ type: "END_SESSION" })
     }
@@ -293,7 +297,7 @@ export default function WatchPage() {
       )}
 
       {state.status === "SUMMARY" && (
-        <AnalysisDashboard result={state.analysisResult} />
+        <AnalysisDashboard result={state.analysisResult} isLoading={isAnalysisLoading} />
       )}
 
       {state.status === "ERROR" &&
