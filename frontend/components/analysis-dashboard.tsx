@@ -3,7 +3,7 @@
 import { AnalyticsResult, GazePoint } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Download } from "lucide-react"
+import { Download, FileText } from "lucide-react"
 
 interface AnalysisDashboardProps {
   result: AnalyticsResult | null
@@ -23,6 +23,206 @@ export default function AnalysisDashboard({ result, isLoading = false, gazeData 
     a.download = "gaze_data.csv"
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  const downloadPDF = async () => {
+    if (!result || result.status !== "success") return
+    const { jsPDF } = await import("jspdf")
+
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
+    const W = 210
+    const margin = 16
+    const contentW = W - 2 * margin
+    const P = { r: 124, g: 58, b: 237 }   // primary purple
+    const LP = { r: 237, g: 233, b: 254 }  // light purple tint
+    let y = 0
+
+    // ── Page 1 header banner ────────────────────────────────────────────────
+    doc.setFillColor(P.r, P.g, P.b)
+    doc.rect(0, 0, W, 42, "F")
+    doc.setTextColor(255, 255, 255)
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(20)
+    doc.text("Gaze Analysis Report", margin, 17)
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(9)
+    doc.text("Detailed insights from your eye-tracking session", margin, 25)
+    const now = new Date()
+    doc.setFontSize(8)
+    doc.setTextColor(220, 200, 255)
+    doc.text(`Generated on ${now.toLocaleDateString()} at ${now.toLocaleTimeString()}`, margin, 34)
+    y = 52
+
+    // ── Session overview box ─────────────────────────────────────────────────
+    if (gazeData && gazeData.length > 0) {
+      const durationSec = ((gazeData[gazeData.length - 1].timestamp - gazeData[0].timestamp) / 1000).toFixed(1)
+      doc.setFillColor(LP.r, LP.g, LP.b)
+      doc.roundedRect(margin, y, contentW, 20, 3, 3, "F")
+      doc.setDrawColor(P.r, P.g, P.b)
+      doc.setLineWidth(0.3)
+      doc.roundedRect(margin, y, contentW, 20, 3, 3, "S")
+      doc.setFillColor(P.r, P.g, P.b)
+      doc.roundedRect(margin, y, 3, 20, 1.5, 1.5, "F")
+      doc.setTextColor(P.r, P.g, P.b)
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(8)
+      doc.text("SESSION OVERVIEW", margin + 7, y + 8)
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(9)
+      doc.setTextColor(60, 40, 100)
+      doc.text(`Gaze Points Collected: ${gazeData.length}`, margin + 7, y + 16)
+      doc.text(`Session Duration: ${durationSec}s`, margin + 90, y + 16)
+      y += 28
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    const checkPageBreak = (needed: number) => {
+      if (y + needed > 278) {
+        doc.addPage()
+        y = 16
+      }
+    }
+
+    const drawSectionHeader = (title: string, subtitle?: string) => {
+      checkPageBreak(18)
+      doc.setFillColor(245, 243, 255)
+      doc.rect(margin, y, contentW, 12, "F")
+      doc.setFillColor(P.r, P.g, P.b)
+      doc.rect(margin, y, 3, 12, "F")
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(10)
+      doc.setTextColor(P.r, P.g, P.b)
+      doc.text(title, margin + 7, y + 8.5)
+      if (subtitle) {
+        doc.setFont("helvetica", "normal")
+        doc.setFontSize(7.5)
+        doc.setTextColor(130, 110, 160)
+        doc.text(subtitle, W - margin, y + 8.5, { align: "right" })
+      }
+      y += 16
+    }
+
+    const drawSubHeading = (label: string) => {
+      checkPageBreak(10)
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(7.5)
+      doc.setTextColor(P.r, P.g, P.b)
+      doc.text(label.toUpperCase(), margin + 2, y)
+      y += 5
+    }
+
+    const drawMetricRow = (x: number, rowY: number, colW: number, key: string, value: any, rowIdx: number) => {
+      if (rowIdx % 2 === 0) {
+        doc.setFillColor(250, 249, 255)
+        doc.rect(x, rowY - 4.5, colW - 1, 6.5, "F")
+      }
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(8.5)
+      doc.setTextColor(90, 90, 115)
+      doc.text(formatLabel(key), x + 2, rowY)
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(8.5)
+      doc.setTextColor(50, 30, 90)
+      const valStr = typeof value === "number" ? value.toFixed(2) : String(value)
+      doc.text(valStr, x + colW - 3, rowY, { align: "right" })
+    }
+
+    const drawMetricRows = (obj: Record<string, any>) => {
+      const entries = Object.entries(obj)
+      const half = Math.ceil(entries.length / 2)
+      const left = entries.slice(0, half)
+      const right = entries.slice(half)
+      const colW = contentW / 2
+      for (let i = 0; i < left.length; i++) {
+        checkPageBreak(8)
+        const rowY = y
+        const [lk, lv] = left[i]
+        drawMetricRow(margin, rowY, colW, lk, lv, i)
+        if (right[i]) {
+          const [rk, rv] = right[i]
+          drawMetricRow(margin + colW, rowY, colW, rk, rv, i)
+        }
+        y += 7
+      }
+      y += 3
+    }
+
+    const { metrics, plots } = result
+
+    // ── Spatial Metrics ───────────────────────────────────────────────────────
+    drawSectionHeader("Spatial Metrics", "Position statistics across the screen")
+    if (metrics.spatial?.x_stats) { drawSubHeading("Horizontal (X)"); drawMetricRows(metrics.spatial.x_stats) }
+    if (metrics.spatial?.y_stats) { drawSubHeading("Vertical (Y)"); drawMetricRows(metrics.spatial.y_stats) }
+    if (metrics.spatial?.outliers) { drawSubHeading("Data Quality"); drawMetricRows(metrics.spatial.outliers) }
+    y += 4
+
+    // ── Temporal Metrics ──────────────────────────────────────────────────────
+    drawSectionHeader("Temporal Metrics", "Time-based measurements")
+    if (metrics.temporal) drawMetricRows(metrics.temporal)
+
+    // ── Attention Metrics ─────────────────────────────────────────────────────
+    drawSectionHeader("Attention Metrics", "Focus and engagement")
+    if (metrics.attention) drawMetricRows(metrics.attention)
+
+    // ── Distraction Metrics ───────────────────────────────────────────────────
+    drawSectionHeader("Distraction Metrics", "Off-screen time analysis")
+    if (metrics.distraction) drawMetricRows(metrics.distraction)
+
+    // ── Plot pages ────────────────────────────────────────────────────────────
+    const plotList = [
+      { key: "heatmap",             title: "Gaze Heatmap",              desc: "Areas of high fixation during playback" },
+      { key: "scatter_path",        title: "Gaze Path",                 desc: "Temporal sequencing of gaze points" },
+      { key: "x_time_series",       title: "X Coordinate Time Series",  desc: "Horizontal gaze position over time" },
+      { key: "y_time_series",       title: "Y Coordinate Time Series",  desc: "Vertical gaze position over time" },
+      { key: "aoi_heatmap",         title: "Area of Interest Heatmap",  desc: "Attention distribution across zones (5×5 grid)" },
+      { key: "distraction_timeline",title: "Attention Timeline",        desc: "Focus vs distraction periods over time" },
+    ]
+    const plotsObj = plots as Record<string, string>
+
+    const getImgDims = (src: string): Promise<{ w: number; h: number }> =>
+      new Promise((resolve) => {
+        const img = new Image()
+        img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight })
+        img.src = src
+      })
+
+    for (const { key, title, desc } of plotList) {
+      if (!plotsObj[key]) continue
+      const src = `data:image/png;base64,${plotsObj[key]}`
+      const { w, h } = await getImgDims(src)
+      const imgH = contentW * (h / w)
+
+      doc.addPage()
+      // Mini page header
+      doc.setFillColor(P.r, P.g, P.b)
+      doc.rect(0, 0, W, 24, "F")
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(12)
+      doc.setTextColor(255, 255, 255)
+      doc.text(title, margin, 13)
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(8)
+      doc.setTextColor(220, 200, 255)
+      doc.text(desc, margin, 20)
+
+      doc.addImage(src, "PNG", margin, 30, contentW, imgH)
+    }
+
+    // ── Footer on every page ──────────────────────────────────────────────────
+    const totalPages = doc.getNumberOfPages()
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i)
+      doc.setDrawColor(200, 190, 230)
+      doc.setLineWidth(0.3)
+      doc.line(margin, 289, W - margin, 289)
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(7)
+      doc.setTextColor(160, 150, 185)
+      doc.text("Gaze Analysis Report  ·  Infosystem Eye Tracking", margin, 294)
+      doc.text(`Page ${i} of ${totalPages}`, W - margin, 294, { align: "right" })
+    }
+
+    doc.save("gaze_analysis_report.pdf")
   }
   // Helper function to format metric labels
   const formatLabel = (key: string) => {
@@ -69,17 +269,30 @@ export default function AnalysisDashboard({ result, isLoading = false, gazeData 
               Detailed insights from your viewing session
             </p>
           </div>
-          {gazeData && gazeData.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={downloadGazeCSV}
-              className="cursor-pointer gap-2"
-            >
-              <Download className="w-4 h-4" />
-              Download CSV
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {gazeData && gazeData.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={downloadGazeCSV}
+                className="cursor-pointer gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Download CSV
+              </Button>
+            )}
+            {result && result.status === "success" && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={downloadPDF}
+                className="cursor-pointer gap-2"
+              >
+                <FileText className="w-4 h-4" />
+                Download PDF
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Metrics Summary */}
