@@ -1,15 +1,29 @@
 "use client"
 
-import { AnalyticsResult } from "@/types"
+import { AnalyticsResult, GazePoint } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Download } from "lucide-react"
 
 interface AnalysisDashboardProps {
   result: AnalyticsResult | null
   isLoading?: boolean
+  gazeData?: GazePoint[] | null
 }
 
-export default function AnalysisDashboard({ result, isLoading = false }: AnalysisDashboardProps) {
+export default function AnalysisDashboard({ result, isLoading = false, gazeData }: AnalysisDashboardProps) {
+  const downloadGazeCSV = () => {
+    if (!gazeData || gazeData.length === 0) return
+    const header = "timestamp,x,y\n"
+    const rows = gazeData.map((p) => `${p.timestamp},${p.x},${p.y}`).join("\n")
+    const blob = new Blob([header + rows], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "gaze_data.csv"
+    a.click()
+    URL.revokeObjectURL(url)
+  }
   // Helper function to format metric labels
   const formatLabel = (key: string) => {
     return key
@@ -55,6 +69,17 @@ export default function AnalysisDashboard({ result, isLoading = false }: Analysi
               Detailed insights from your viewing session
             </p>
           </div>
+          {gazeData && gazeData.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={downloadGazeCSV}
+              className="cursor-pointer gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Download CSV
+            </Button>
+          )}
         </div>
 
         {/* Metrics Summary */}

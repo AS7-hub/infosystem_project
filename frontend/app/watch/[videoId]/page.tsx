@@ -297,7 +297,7 @@ export default function WatchPage() {
       )}
 
       {state.status === "SUMMARY" && (
-        <AnalysisDashboard result={state.analysisResult} isLoading={isAnalysisLoading} />
+        <AnalysisDashboard result={state.analysisResult} isLoading={isAnalysisLoading} gazeData={state.gazeData} />
       )}
 
       {state.status === "ERROR" &&
