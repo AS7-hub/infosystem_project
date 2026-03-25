@@ -3,6 +3,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import pandas as pd
 from utils.encoding import fig_to_base64
 from config import SCREEN_WIDTH, SCREEN_HEIGHT
 from analytics.metrics.heatmap import aoi_grid
@@ -20,24 +21,50 @@ def generate_plots(df, screen_w=None, screen_h=None):
     plots = {}
     
     # Filter for cleaner plots (only on-screen data)
-    df_clean = df[df['on_screen'] == True]
+    df_clean = df[df['on_screen'] == True].copy()
     if df_clean.empty:
         return plots
 
+    # Filter for Heatmap: Only keep coordinates where user looked for >= 0.25 seconds
+    # We bin the screen into a 50x50 grid, sum the time spent ('dt') in each bin,
+    # and only keep data points from bins with >= 0.25s total duration.
+    bins_x = np.linspace(0, screen_w, 51)
+    bins_y = np.linspace(0, screen_h, 51)
+    df_clean['bin_x'] = np.digitize(df_clean['x_smooth'], bins_x)
+    df_clean['bin_y'] = np.digitize(df_clean['y_smooth'], bins_y)
+    
+    bin_durations = df_clean.groupby(['bin_x', 'bin_y'])['dt'].sum().reset_index()
+    valid_bins = bin_durations[bin_durations['dt'] >= 0.25]
+    
+    df_heatmap = pd.merge(df_clean, valid_bins[['bin_x', 'bin_y']], on=['bin_x', 'bin_y'])
+
     # --- Plot 1: 2D Heatmap (KDE) ---
     fig1, ax1 = plt.subplots(figsize=(10, 6))
-    sns.kdeplot(
-        data=df_clean,
-        x='x_smooth',
-        y='y_smooth',
-        fill=True,
-        cmap='rocket',
-        levels=30,
-        alpha=0.85,
-        ax=ax1,
-        cbar=True,
-        cbar_kws={'label': 'Gaze Density'}
-    )
+    if not df_heatmap.empty and len(df_heatmap) > 1:
+        try:
+            sns.kdeplot(
+                data=df_heatmap,
+                x='x_smooth',
+                y='y_smooth',
+                fill=True,
+                cmap='rocket',
+                levels=30,
+                alpha=0.85,
+                ax=ax1,
+                cbar=True,
+                cbar_kws={'label': 'Gaze Density'}
+            )
+        except Exception as e:
+            sns.scatterplot(
+                data=df_heatmap,
+                x='x_smooth',
+                y='y_smooth',
+                color='red',
+                s=100,
+                alpha=0.5,
+                ax=ax1
+            )
+            print(f"KDE plot failed, drew scatter plot fallback. Error: {e}")
     ax1.set_xlim(0, screen_w)
     ax1.set_ylim(screen_h, 0)  # Invert Y for screen coordinates
     ax1.set_title("Gaze Intensity Heatmap")
