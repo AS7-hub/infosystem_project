@@ -1,6 +1,6 @@
 services:
   frontend:
-    image: bholechature/chiasm-frontend:1.1.0
+    image: bholechature/chiasm-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -16,7 +16,7 @@ services:
       - chiasm-network
 
   backend:
-    image: bholechature/chiasm-backend:1.1.0
+    image: bholechature/chiasm-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
