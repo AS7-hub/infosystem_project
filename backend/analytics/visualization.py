@@ -22,21 +22,28 @@ def generate_plots(df, screen_w=None, screen_h=None):
     
     # Filter for cleaner plots (only on-screen data)
     df_clean = df[df['on_screen'] == True].copy()
-    if df_clean.empty:
-        return plots
+
+    # --- Clamping for Heatmaps ---
+    # The user requested all gaze points (including out-of-bounds/distractions) to be included in heatmaps
+    # by clamping them to the screen boundaries, strictly within visualization so metrics are unaffected.
+    df_heatmap_clamped = df.copy()
+    df_heatmap_clamped['x'] = df_heatmap_clamped['x'].clip(0, screen_w)
+    df_heatmap_clamped['y'] = df_heatmap_clamped['y'].clip(0, screen_h)
+    df_heatmap_clamped['x_smooth'] = df_heatmap_clamped['x_smooth'].clip(0, screen_w)
+    df_heatmap_clamped['y_smooth'] = df_heatmap_clamped['y_smooth'].clip(0, screen_h)
 
     # Filter for Heatmap: Only keep coordinates where user looked for >= 0.25 seconds
     # We bin the screen into a 50x50 grid, sum the time spent ('dt') in each bin,
     # and only keep data points from bins with >= 0.25s total duration.
     bins_x = np.linspace(0, screen_w, 51)
     bins_y = np.linspace(0, screen_h, 51)
-    df_clean['bin_x'] = np.digitize(df_clean['x_smooth'], bins_x)
-    df_clean['bin_y'] = np.digitize(df_clean['y_smooth'], bins_y)
+    df_heatmap_clamped['bin_x'] = np.digitize(df_heatmap_clamped['x_smooth'], bins_x)
+    df_heatmap_clamped['bin_y'] = np.digitize(df_heatmap_clamped['y_smooth'], bins_y)
     
-    bin_durations = df_clean.groupby(['bin_x', 'bin_y'])['dt'].sum().reset_index()
+    bin_durations = df_heatmap_clamped.groupby(['bin_x', 'bin_y'])['dt'].sum().reset_index()
     valid_bins = bin_durations[bin_durations['dt'] >= 0.25]
     
-    df_heatmap = pd.merge(df_clean, valid_bins[['bin_x', 'bin_y']], on=['bin_x', 'bin_y'])
+    df_heatmap = pd.merge(df_heatmap_clamped, valid_bins[['bin_x', 'bin_y']], on=['bin_x', 'bin_y'])
 
     # --- Plot 1: 2D Heatmap (KDE) ---
     fig1, ax1 = plt.subplots(figsize=(10, 6))
@@ -73,40 +80,41 @@ def generate_plots(df, screen_w=None, screen_h=None):
     plots['heatmap'] = fig_to_base64(fig1)
 
     # --- Plot 2: Scatter Plot (Time Colored) ---
-    fig2, ax2 = plt.subplots(figsize=(10, 6))
-    
-    # Plot path lines first (underneath points)
-    ax2.plot(df_clean['x_smooth'], df_clean['y_smooth'], 
-             color='lightgray', alpha=0.4, linewidth=1.5, zorder=1)
-    
-    # Scatter plot with seaborn for better styling
-    scatter = sns.scatterplot(
-        data=df_clean,
-        x='x_smooth',
-        y='y_smooth',
-        hue='time_sec',
-        palette='mako',
-        alpha=0.75,
-        s=25,
-        edgecolor='white',
-        linewidth=0.4,
-        ax=ax2,
-        legend=False,
-        zorder=2
-    )
-    
-    # Add colorbar
-    norm = plt.Normalize(vmin=df_clean['time_sec'].min(), vmax=df_clean['time_sec'].max())
-    sm = plt.cm.ScalarMappable(cmap='mako', norm=norm)
-    sm.set_array([])
-    plt.colorbar(sm, ax=ax2, label='Time (seconds)')
-    
-    ax2.set_xlim(0, screen_w)
-    ax2.set_ylim(screen_h, 0)
-    ax2.set_title("Gaze Path Over Time")
-    ax2.set_xlabel("Screen X")
-    ax2.set_ylabel("Screen Y")
-    plots['scatter_path'] = fig_to_base64(fig2)
+    if not df_clean.empty:
+        fig2, ax2 = plt.subplots(figsize=(10, 6))
+        
+        # Plot path lines first (underneath points)
+        ax2.plot(df_clean['x_smooth'], df_clean['y_smooth'], 
+                 color='lightgray', alpha=0.4, linewidth=1.5, zorder=1)
+        
+        # Scatter plot with seaborn for better styling
+        scatter = sns.scatterplot(
+            data=df_clean,
+            x='x_smooth',
+            y='y_smooth',
+            hue='time_sec',
+            palette='mako',
+            alpha=0.75,
+            s=25,
+            edgecolor='white',
+            linewidth=0.4,
+            ax=ax2,
+            legend=False,
+            zorder=2
+        )
+        
+        # Add colorbar
+        norm = plt.Normalize(vmin=df_clean['time_sec'].min(), vmax=df_clean['time_sec'].max())
+        sm = plt.cm.ScalarMappable(cmap='mako', norm=norm)
+        sm.set_array([])
+        plt.colorbar(sm, ax=ax2, label='Time (seconds)')
+        
+        ax2.set_xlim(0, screen_w)
+        ax2.set_ylim(screen_h, 0)
+        ax2.set_title("Gaze Path Over Time")
+        ax2.set_xlabel("Screen X")
+        ax2.set_ylabel("Screen Y")
+        plots['scatter_path'] = fig_to_base64(fig2)
 
     # --- Plot 3: X-Coordinate Time Series ---
     fig3, ax3 = plt.subplots(figsize=(10, 4))
@@ -165,8 +173,8 @@ def generate_plots(df, screen_w=None, screen_h=None):
     # --- Plot 5: AOI Grid Heatmap ---
     fig5, ax5 = plt.subplots(figsize=(8, 8))
     
-    # Compute AOI grid data
-    aoi_data = np.array(aoi_grid(df))
+    # Compute AOI grid data using the dataframe with clamped boundary edges
+    aoi_data = np.array(aoi_grid(df_heatmap_clamped))
     
     # Create heatmap
     sns.heatmap(
